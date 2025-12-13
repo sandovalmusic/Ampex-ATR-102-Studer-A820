@@ -1,0 +1,127 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
+          - os: ubuntu-22.04
+            name: Linux
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.name }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libcurl4-openssl-dev \
+            libfreetype6-dev \
+            libx11-dev \
+            libxcomposite-dev \
+            libxcursor-dev \
+            libxext-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            libwebkit2gtk-4.0-dev \
+            libglu1-mesa-dev \
+            mesa-common-dev \
+            freeglut3-dev
+
+      # Use Developer Command Prompt to ensure x64 MSBuild is used
+      # This fixes JUCE 8.0.4 bug where moduleinfo.json fails to generate
+      # See: https://forum.juce.com/t/vst3-moduleinfo-json-fails-to-be-generated-on-x64-since-nov-25th-commit/64640
+      - name: Setup MSVC x64 environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S Plugin -B build -DCMAKE_BUILD_TYPE=Release -G "Visual Studio 17 2022" -A x64
+
+      - name: Configure CMake (Unix)
+        if: runner.os != 'Windows'
+        run: cmake -S Plugin -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cmake --build build --config Release --parallel
+        env:
+          # Force x64 architecture detection for JUCE VST3 manifest generation
+          PROCESSOR_ARCHITECTURE: AMD64
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        run: cmake --build build --config Release --parallel
+
+      - name: Verify VST3 structure (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "=== VST3 bundle contents ==="
+          find build -name "*.vst3" -type d -exec ls -la {} \; 2>/dev/null || true
+          echo "=== Looking for moduleinfo.json ==="
+          find build -name "moduleinfo.json" 2>/dev/null || echo "WARNING: No moduleinfo.json found!"
+          echo "=== Looking for .dll files ==="
+          find build -name "*.dll" 2>/dev/null || true
+
+      - name: List build output (debug)
+        shell: bash
+        run: |
+          echo "=== All .vst3 files ==="
+          find build -name "*.vst3" -type d 2>/dev/null || true
+          echo "=== All .component files ==="
+          find build -name "*.component" -type d 2>/dev/null || true
+
+      - name: Upload VST3 (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ampex-ATR102-Studer-A820-Windows-VST3
+          path: build/**/*.vst3
+          if-no-files-found: error
+
+      - name: Upload VST3 (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ampex-ATR102-Studer-A820-macOS-VST3
+          path: build/**/*.vst3
+          if-no-files-found: error
+
+      - name: Upload AU (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ampex-ATR102-Studer-A820-macOS-AU
+          path: build/**/*.component
+          if-no-files-found: error
+
+      - name: Upload VST3 (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ampex-ATR102-Studer-A820-Linux-VST3
+          path: build/**/*.vst3
+          if-no-files-found: error

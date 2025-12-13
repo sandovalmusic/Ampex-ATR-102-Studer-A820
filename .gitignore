@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+Plugin/build/
+Tests/build/
+cmake-build-*/
+*.o
+*.d
+*.a
+*.dylib
+*.so
+*.dll
+*.dSYM/
+
+# IDE
+.vscode/
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+
+# macOS
+.DS_Store
+._*
+
+# Test binaries
+THDValidator
+Test_*
+!Test_*.cpp
+param_search
+test_*
+!test_*.cpp
+
+# Misc
+*.txt
+!CMakeLists.txt
