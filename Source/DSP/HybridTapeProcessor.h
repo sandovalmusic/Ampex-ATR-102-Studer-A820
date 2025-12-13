@@ -129,7 +129,7 @@ private:
     // Startup fade-in to prevent pop from DC blocker initialization
     double fadeInGain = 0.0;       // Current fade-in gain (0 to 1)
     double fadeInIncrement = 0.0;  // Increment per sample (set in setSampleRate)
-    static constexpr double FADE_IN_TIME_MS = 50.0;  // 50ms fade-in
+    static constexpr double FADE_IN_TIME_MS = 150.0;  // 150ms fade-in (4th-order DC blocker needs time)
 
     void updateCachedValues();
     double saturate(double x);  // Main saturation function
