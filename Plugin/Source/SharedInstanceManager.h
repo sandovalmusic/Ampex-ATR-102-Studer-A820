@@ -5,7 +5,7 @@
 #include <vector>
 #include <cstring>
 
-namespace LowTHD
+namespace TapeMachine
 {
 
 /**
@@ -27,7 +27,7 @@ class SharedInstanceManager
 {
 public:
     static constexpr int MAX_INSTANCES = 32;
-    static constexpr uint32_t MAGIC_NUMBER = 0x4C4F5448;  // "LOTH"
+    static constexpr uint32_t MAGIC_NUMBER = 0x54415045;  // "TAPE"
     static constexpr uint32_t VERSION = 1;
     static constexpr int HEARTBEAT_INTERVAL_MS = 100;
     static constexpr int STALE_THRESHOLD_MS = 500;
@@ -120,4 +120,4 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SharedInstanceManager)
 };
 
-} // namespace LowTHD
+} // namespace TapeMachine

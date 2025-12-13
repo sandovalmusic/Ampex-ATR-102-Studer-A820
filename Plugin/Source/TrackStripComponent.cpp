@@ -1,6 +1,6 @@
 #include "TrackStripComponent.h"
 
-namespace LowTHD
+namespace TapeMachine
 {
 
 //==============================================================================
@@ -309,4 +309,4 @@ void TrackStripContainer::resized()
     viewport.setBounds(bounds);
 }
 
-} // namespace LowTHD
+} // namespace TapeMachine

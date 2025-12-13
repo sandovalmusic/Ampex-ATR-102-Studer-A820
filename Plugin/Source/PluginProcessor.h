@@ -82,7 +82,7 @@ public:
     float getCurrentLevelDB() const { return currentLevelDB.load(); }
 
     // Access shared instance manager for Master mode UI
-    LowTHD::SharedInstanceManager& getSharedInstanceManager() { return sharedInstanceManager; }
+    TapeMachine::SharedInstanceManager& getSharedInstanceManager() { return sharedInstanceManager; }
 
     // Override to receive track name from DAW
     void updateTrackProperties (const TrackProperties& properties) override;
@@ -633,7 +633,7 @@ private:
     bool isReceivingRemoteUpdate = false;  // Prevent feedback loops from Master/Tracks communication
 
     // Shared instance manager for Master/Tracks communication
-    LowTHD::SharedInstanceManager sharedInstanceManager;
+    TapeMachine::SharedInstanceManager sharedInstanceManager;
 
     // Parameter listener callback
     void parameterChanged (const juce::String& parameterID, float newValue) override;

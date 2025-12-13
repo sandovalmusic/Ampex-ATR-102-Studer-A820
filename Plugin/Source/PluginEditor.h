@@ -59,7 +59,7 @@ private:
     juce::Colour textColour;
 
     // Track strip container for Master mode (shows Tracks instances)
-    LowTHD::TrackStripContainer trackStripContainer;
+    TapeMachine::TrackStripContainer trackStripContainer;
 
     // Track current mode for showing/hiding track strips
     int lastMachineMode = -1;

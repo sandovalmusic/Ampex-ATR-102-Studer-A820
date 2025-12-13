@@ -5,13 +5,13 @@
     #include <sys/stat.h>
     #include <fcntl.h>
     #include <unistd.h>
-    #define SHARED_MEMORY_NAME "/lowthd_instances"
+    #define SHARED_MEMORY_NAME "/tapemachine_instances"
 #elif JUCE_WINDOWS
     #include <windows.h>
-    #define SHARED_MEMORY_NAME "Local\\lowthd_instances"
+    #define SHARED_MEMORY_NAME "Local\\tapemachine_instances"
 #endif
 
-namespace LowTHD
+namespace TapeMachine
 {
 
 SharedInstanceManager::SharedInstanceManager()
@@ -460,4 +460,4 @@ bool SharedInstanceManager::checkForParamUpdates(float& outDrive, float& outVolu
     return false;
 }
 
-} // namespace LowTHD
+} // namespace TapeMachine
