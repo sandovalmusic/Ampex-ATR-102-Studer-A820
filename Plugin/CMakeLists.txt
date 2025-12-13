@@ -49,7 +49,7 @@ juce_add_plugin(TapeMachinePlugin
     PLUGIN_MANUFACTURER_CODE AuBn
     PLUGIN_CODE AmSt
     FORMATS ${PLUGIN_FORMATS}
-    PRODUCT_NAME "Ampex ATR-102 | Studer A820"
+    PRODUCT_NAME "Ampex ATR-102 - Studer A820"
     DESCRIPTION "Physics-based tape saturation emulation"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
