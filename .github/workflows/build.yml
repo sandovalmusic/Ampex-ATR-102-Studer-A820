@@ -15,7 +15,7 @@ jobs:
         include:
           - os: windows-latest
             name: Windows
-          - os: macos-13
+          - os: macos-14
             name: macOS
           - os: ubuntu-22.04
             name: Linux
@@ -47,10 +47,10 @@ jobs:
             mesa-common-dev \
             freeglut3-dev
 
-      # Select Xcode version for macOS (15.2 is stable on macos-13)
+      # Select Xcode version for macOS (16.0 is stable on macos-14)
       - name: Select Xcode
         if: runner.os == 'macOS'
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
 
       # JUCE 8.0.4 Windows VST3 moduleinfo.json fix
       # See: https://forum.juce.com/t/vst3-moduleinfo-json-fails-to-be-generated-on-x64-since-nov-25th-commit/64640
