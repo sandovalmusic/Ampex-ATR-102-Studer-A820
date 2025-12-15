@@ -61,6 +61,16 @@ void HFCut::setMachineMode(bool isAmpex)
     }
 }
 
+void HFCut::setMachineAndTape(bool isAmpex, bool isSM900)
+{
+    if (ampexMode != isAmpex || sm900Mode != isSM900)
+    {
+        ampexMode = isAmpex;
+        sm900Mode = isSM900;
+        updateCoefficients();
+    }
+}
+
 void HFCut::reset()
 {
     shelf1.reset();
@@ -85,39 +95,27 @@ double HFCut::calculateDCGain()
 
 void HFCut::updateCoefficients()
 {
-    // New architecture: Shelf1 + Shelf2 + Bell
+    // Architecture: Shelf1 + Shelf2 + Bell
     // Achieves flat response below 5kHz with smooth HF rolloff
     //
-    // Target curves (from TARGETS.md):
-    //   AMPEX: 0dB@<5k, -3dB@5k, -6dB@10k, -8dB@15k, -10dB@20k
-    //   STUDER: 0dB@<5k, -2dB@5k, -5dB@10k, -7dB@15k, -9dB@20k
+    // Machine-dependent only (not tape formula dependent)
+    // Research confirms GP9 and SM900 have "compatible frequency response and sensitivity"
+    // The bias shielding is determined by machine bias frequency, not tape formula
 
     if (ampexMode)
     {
-        // AMPEX ATR-102: 432 kHz bias + Quantegy GP9 tape
-        // GP9 has higher coercivity (370 Oe vs 320 Oe for 456) requiring ~1 dB more HF cut
+        // AMPEX ATR-102: 432 kHz bias
         // MORE HF cut (transparent mastering character - HF bypasses saturation)
-        //
-        // GP9 targets: 0dB@<5k, -4dB@5k, -7dB@10k, -9dB@15k, -11dB@20k
-        // (vs 456: 0dB@<5k, -3dB@5k, -6dB@10k, -8dB@15k, -10dB@20k)
-        //
-        // Optimized parameters for GP9:
-        // - Shelf1: 7000 Hz, -7.0 dB, Q=1.00 (was -6.0)
-        // - Shelf2: 15000 Hz, -4.0 dB, Q=1.00 (was -3.5)
-        // - Bell: 5000 Hz, -3.5 dB, Q=2.0 (was -3.0)
+        // Targets: 0dB@<5k, -4dB@5k, -7dB@10k, -9dB@15k, -11dB@20k
         designHighShelf(shelf1, 7000.0, -7.0, 1.0, fs);
         designHighShelf(shelf2, 15000.0, -4.0, 1.0, fs);
         designBell(bell, 5000.0, -3.5, 2.0, fs);
     }
     else
     {
-        // STUDER A820: 153.6 kHz bias + GP9 tape
+        // STUDER A820: 153.6 kHz bias
         // LESS HF cut (warmer multitrack character - more HF into saturation)
-        //
-        // Optimized parameters (max error 0.21 dB):
-        // - Shelf1: 7500 Hz, -6.0 dB, Q=0.80
-        // - Shelf2: 16000 Hz, -3.0 dB, Q=1.00
-        // - Bell: 6000 Hz, -2.0 dB, Q=2.0
+        // Targets: 0dB@<5k, -2dB@5k, -5dB@10k, -7dB@15k, -9dB@20k
         designHighShelf(shelf1, 7500.0, -6.0, 0.8, fs);
         designHighShelf(shelf2, 16000.0, -3.0, 1.0, fs);
         designBell(bell, 6000.0, -2.0, 2.0, fs);

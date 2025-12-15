@@ -80,68 +80,106 @@ void HybridTapeProcessor::reset()
     fadeInGain = 0.0;  // Reset fade-in on reset
 }
 
-void HybridTapeProcessor::setParameters(double biasStrength, double inputGain)
+void HybridTapeProcessor::setParameters(double biasStrength, double inputGain, int tapeFormula)
 {
     double clampedBias = std::clamp(biasStrength, 0.0, 1.0);
     bool newIsAmpexMode = (clampedBias < 0.74);
+    TapeFormula newTapeFormula = (tapeFormula == 0) ? TapeFormula::GP9 : TapeFormula::SM900;
 
-    if (newIsAmpexMode != isAmpexMode || inputGain != currentInputGain)
+    if (newIsAmpexMode != isAmpexMode || inputGain != currentInputGain || newTapeFormula != currentTapeFormula)
     {
         currentBiasStrength = clampedBias;
         currentInputGain = inputGain;
+        currentTapeFormula = newTapeFormula;
         updateCachedValues();
     }
+}
+
+void HybridTapeProcessor::setTestParameters(double testSatA3, double testSatPower,
+                                             double testLowLevelScale, double testJaBlend)
+{
+    satA3 = testSatA3;
+    satPower = testSatPower;
+    lowLevelScale = testLowLevelScale;
+    jaBlend = testJaBlend;
 }
 
 void HybridTapeProcessor::updateCachedValues()
 {
     isAmpexMode = (currentBiasStrength < 0.74);
+    bool isSM900 = (currentTapeFormula == TapeFormula::SM900);
 
     // === Realistic J-A Parameters (DAFx 2019 paper) ===
-    // These are calibrated for actual tape behavior
+    // Calibrated for actual tape behavior, adjusted for tape formula
+    // SM900: Lower retentivity (1540 Gs vs 1600 Gs for GP9) = lower M_s
+    // Both have same coercivity (370 Oe) so k remains the same
     JilesAthertonCore::Parameters jaParams;
-    jaParams.M_s = 350000.0;   // Saturation magnetization
     jaParams.a = 22000.0;      // Domain wall density
-    jaParams.k = 27500.0;      // Coercivity
+    jaParams.k = 27500.0;      // Coercivity (370 Oe - same for GP9 and SM900)
     jaParams.c = 0.98;         // High reversibility for calibrated 30 IPS
     jaParams.alpha = 1.6e-3;   // Mean field parameter
+
+    if (isSM900) {
+        // SM900: Lower retentivity = lower saturation magnetization
+        // Ratio: 1540/1600 = 0.9625
+        jaParams.M_s = 337000.0;  // ~96.25% of GP9's 350000
+        jaOutputScale = 152.0;    // Adjusted for lower M_s to maintain unity gain
+    } else {
+        // GP9: Standard parameters
+        jaParams.M_s = 350000.0;  // Saturation magnetization
+        jaOutputScale = 146.0;    // Calculated for unity gain at 0VU (0.316 input)
+    }
     jaCore.setParameters(jaParams);
 
-    // Output scale for unity gain at 0VU (0.316)
-    // Calculated from: 0.316 / (J-A output at 0.316 input) ≈ 146
-    jaOutputScale = 146.0;
-
-    // J-A output is scaled to unity at 0VU (0.316 input)
-    // So saturate() receives similar normalized signal levels as our standalone tests
-    // Use the same saturation parameters directly
+    // === Saturation Parameters - 4 Configurations ===
+    // Machine mode determines E/O ratio and character
+    // Tape formula determines saturation onset and curve shape
 
     if (isAmpexMode) {
-        // AMPEX ATR-102 (MASTER MODE)
-        // E/O ratio ~0.50 (target 0.50, odd-dominant)
-        // Level-scaled cubic: effectiveA3 = a3 * level^power
-        // Tuned with J-A in the loop
-        satA3 = 0.0030;   // Base cubic coefficient
-        satPower = 0.35;  // THD slope = 2.35 on log-log (steeper for smoother +3/+6)
-        inputBias = 0.075; // DC bias for even harmonics (tuned for E/O = 0.50)
-        lowLevelScale = 0.20;  // 20% a3 at very low levels
-        dispersiveCornerFreq = 10000.0;
-        // J-A blend: 432kHz bias = more linearization = less hysteresis
-        jaBlend = 0.06;   // 6% - transparent mastering character
+        if (isSM900) {
+            // AMPEX ATR-102 + SM900
+            // Target: THD 0.15% at 0VU, MOL +13 dB
+            // Custom mastering head scaled (0.032% @ 355nW reference)
+            satA3 = 0.0052;   // Auto-tuned for 0.15% THD at 0VU
+            satPower = 0.24;  // Flattens curve to match real tape behavior
+            inputBias = 0.075; // DC bias for E/O ~0.50
+            lowLevelScale = 0.74;
+            dispersiveCornerFreq = 10000.0;
+            jaBlend = 0.004;  // 0.4% J-A - reduced for high bias linearization
+        } else {
+            // AMPEX ATR-102 + GP9
+            // Target: THD 0.09% at 0VU, MOL +15 dB
+            // Custom mastering head scaled (0.032% @ 355nW reference)
+            satA3 = 0.0032;   // Auto-tuned for 0.09% THD at 0VU
+            satPower = 0.24;  // Flattens curve to match real tape behavior
+            inputBias = 0.075; // DC bias for E/O ~0.50
+            lowLevelScale = 0.74;
+            dispersiveCornerFreq = 10000.0;
+            jaBlend = 0.004;  // 0.4% J-A - reduced for high bias linearization
+        }
     } else {
-        // STUDER A820 (TRACKS MODE)
-        // E/O ratio ~1.12 (target 1.12, even-dominant)
-        // Level-scaled cubic: effectiveA3 = a3 * level^power
-        // Tuned with J-A in the loop
-        satA3 = 0.0058;   // Base cubic coefficient
-        satPower = 0.48;  // THD slope = 2.48 on log-log
-        inputBias = 0.18; // DC bias for even harmonics (tuned for E/O = 1.12)
-        lowLevelScale = 0.80;  // 80% a3 at very low levels
-        dispersiveCornerFreq = 2800.0;
-        // J-A blend: 153.6kHz bias = less linearization = more hysteresis
-        jaBlend = 0.12;   // 12% - more tape compression character
+        if (isSM900) {
+            // STUDER A820 + SM900
+            // Target: THD 0.30% at 0VU, MOL +10 dB
+            satA3 = 0.0076;   // Auto-tuned for 0.30% THD at 0VU
+            satPower = 0.46;  // Flattens curve to match real tape behavior
+            inputBias = 0.18; // DC bias for E/O ~1.12
+            lowLevelScale = 0.57;
+            dispersiveCornerFreq = 2800.0;
+            jaBlend = 0.010;  // 1.0% J-A for tape character
+        } else {
+            // STUDER A820 + GP9
+            // Target: THD 0.18% at 0VU, MOL +12 dB
+            satA3 = 0.0046;   // Auto-tuned for 0.18% @ 0VU
+            satPower = 0.46;  // Flattens curve to match real tape behavior
+            inputBias = 0.18; // DC bias for E/O ~1.12
+            lowLevelScale = 0.57; // Balance low-level THD
+            dispersiveCornerFreq = 2800.0;
+            jaBlend = 0.010;  // 1.0% J-A for tape character
+        }
     }
 
-    // Azimuth delay: Ampex 8μs, Studer 12μs
+    // Azimuth delay: Ampex 8μs, Studer 12μs (machine-dependent, not tape-dependent)
     double delayMicroseconds = isAmpexMode ? 8.0 : 12.0;
     cachedDelaySamples = delayMicroseconds * 1e-6 * fs;
 
@@ -151,10 +189,11 @@ void HybridTapeProcessor::updateCachedValues()
         dispersiveAllpass[i].setFrequency(freq, fs);
     }
 
-    // Update machine EQ
+    // Update machine EQ (machine-dependent, not tape-dependent)
     machineEQ.setMachine(isAmpexMode ? MachineEQ::Machine::Ampex : MachineEQ::Machine::Studer);
 
-    // Update AC bias shielding curve
+    // Update AC bias shielding curve (machine-dependent only)
+    // Research confirms GP9 and SM900 have compatible frequency response when properly biased
     hfCut.setMachineMode(isAmpexMode);
 }
 

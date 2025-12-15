@@ -9,6 +9,17 @@ namespace TapeMachine
 {
 
 /**
+ * Tape Formula enumeration
+ * GP9: Quantegy GP9 - Clean but "boring", higher MOL, steeper distortion curve
+ * SM900: Emtec SM900 - Warmer, lower MOL, more gradual/linear distortion, bottom-end enhancement
+ */
+enum class TapeFormula
+{
+    GP9 = 0,
+    SM900 = 1
+};
+
+/**
  * Hybrid Tape Saturation Processor
  *
  * Architecture:
@@ -41,8 +52,16 @@ public:
     /**
      * @param biasStrength - < 0.74 = Master (Ampex), >= 0.74 = Tracks (Studer)
      * @param inputGain - Input gain scaling
+     * @param tapeFormula - 0 = GP9, 1 = SM900
      */
-    void setParameters(double biasStrength, double inputGain);
+    void setParameters(double biasStrength, double inputGain, int tapeFormula = 0);
+
+    /**
+     * Direct parameter override for testing/calibration
+     * Call AFTER setParameters() to override specific values
+     */
+    void setTestParameters(double testSatA3, double testSatPower,
+                           double testLowLevelScale, double testJaBlend);
 
     double processSample(double input);
     double processRightChannel(double input);  // With azimuth delay
@@ -59,6 +78,7 @@ private:
     double currentBiasStrength = 0.5;
     double currentInputGain = 1.0;
     bool isAmpexMode = true;
+    TapeFormula currentTapeFormula = TapeFormula::GP9;
     double fs = 48000.0;
 
     // Global input bias for E/O ratio (even harmonics)

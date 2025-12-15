@@ -46,12 +46,14 @@ public:
     HFCut();
     void setSampleRate(double sampleRate);
     void setMachineMode(bool isAmpex);
+    void setMachineAndTape(bool isAmpex, bool isSM900);
     void reset();
     double processSample(double input);
 
 private:
     double fs = 48000.0;
     bool ampexMode = true;
+    bool sm900Mode = false;
 
     // High shelf filters for main HF rolloff
     Biquad shelf1;  // Primary shelf (starts around 7kHz)
