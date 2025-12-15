@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/sandovalmusic/Ampex-ATR-102-Studer-A820/actions/workflows/build.yml/badge.svg)](https://github.com/sandovalmusic/Ampex-ATR-102-Studer-A820/actions/workflows/build.yml)
 
-Physics-based tape saturation plugin emulating the **Ampex ATR-102** and **Studer A820** tape machines with GP9 tape formula at 30 IPS.
+Physics-based tape saturation plugin emulating the **Ampex ATR-102** and **Studer A820** tape machines with **GP9** and **SM900** tape formulas at 30 IPS.
 
 ## Download
 
@@ -34,19 +34,24 @@ This emulation models the **tape and heads**, not the electronics that were desi
 | Control | Range | Default | Function |
 |---------|-------|---------|----------|
 | **Mode** | Master / Tracks | Master | Ampex ATR-102 or Studer A820 |
-| **Drive** | -12 dB to +18 dB | -6 dB | Input level to saturation stage |
-| **Volume** | -20 dB to +9.5 dB | 0 dB | Output level |
+| **Tape** | GP9 / SM900 | GP9 | Quantegy GP9 (clean) or Emtec SM900 (warm) |
+| **Drive** | -12 dB to +12 dB | 0 dB | Input level to saturation stage |
+| **Volume** | -12 dB to +12 dB | 0 dB | Output level |
 
 ---
 
 ## Machine Specifications
 
-### Measured THD vs Input Level (1 kHz)
+### THD Calibration (1 kHz, 500nW Reference)
 
-| Mode | Machine | THD @ 0 dB | THD @ +6 dB | E/O Ratio |
-|------|---------|------------|-------------|-----------|
-| **Master** | Ampex ATR-102 | 0.079% | 0.394% | 0.50 (odd-dominant) |
-| **Tracks** | Studer A820 | 0.238% | 1.091% | 1.11 (even-dominant) |
+All 4 machine/tape combinations calibrated against research-based targets with RMS error < 0.35 dB across -12 to +6 VU:
+
+| Mode | Tape | THD @ 0VU | THD @ +6VU | MOL | E/O Ratio | RMS Error |
+|------|------|-----------|------------|-----|-----------|-----------|
+| **Master** | GP9 | 0.09% | 0.37% | +15 dB | 0.50 (odd) | 0.25 dB |
+| **Master** | SM900 | 0.14% | 0.61% | +13 dB | 0.50 (odd) | 0.27 dB |
+| **Tracks** | GP9 | 0.17% | 0.74% | +12 dB | 1.12 (even) | 0.33 dB |
+| **Tracks** | SM900 | 0.29% | 1.24% | +10 dB | 1.12 (even) | 0.29 dB |
 
 ### Frequency Response Tolerances (Per-Instance Randomized)
 
@@ -140,10 +145,14 @@ THD_slope = 2 + power
 
 **Parameters:**
 
-| Machine | a3 | power | input_bias | THD slope |
-|---------|-----|-------|------------|-----------|
-| Ampex ATR-102 | 0.0030 | 0.35 | 0.075 | 2.35 |
-| Studer A820 | 0.0058 | 0.48 | 0.180 | 2.48 |
+| Machine | Tape | satA3 | satPower | lowLevelScale | lowThreshold |
+|---------|------|-------|----------|---------------|--------------|
+| Ampex ATR-102 | GP9 | 0.0032 | 0.16 | 0.61 | 0.50 |
+| Ampex ATR-102 | SM900 | 0.0052 | 0.18 | 0.65 | 0.50 |
+| Studer A820 | GP9 | 0.0046 | 0.43 | 0.56 | 0.55 |
+| Studer A820 | SM900 | 0.0078 | 0.41 | 0.52 | 0.55 |
+
+**Note:** Machine-specific `lowThreshold` values (Studer 0.55, Ampex 0.50) account for different AC bias frequencies affecting low-level behavior.
 
 #### DC Bias for Even/Odd Control
 
@@ -248,6 +257,13 @@ Ampex-ATR-102-Studer-A820/
 ---
 
 ## Changelog
+
+### v1.3.0 (December 2025)
+- Added **SM900 tape formula** option (Emtec SM900 - warmer, lower MOL vs GP9)
+- Calibrated all 4 machine/tape combinations against research-based THD targets
+- Machine-specific `lowThreshold` parameter (Studer 0.55, Ampex 0.50) fixes -6VU curve bump
+- THD curve accuracy now < 0.35 dB RMS error across -12 to +6 VU range
+- Optimized saturation parameters (satA3, satPower, lowLevelScale) for each mode
 
 ### v1.2.0 (December 2025)
 - Renamed from "Low THD Tape Sim" to "Ampex ATR-102 | Studer A820"
