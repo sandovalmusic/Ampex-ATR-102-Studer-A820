@@ -72,6 +72,7 @@ public:
     //==============================================================================
     // Parameter IDs
     static constexpr const char* PARAM_MACHINE_MODE = "machineMode";
+    static constexpr const char* PARAM_TAPE_FORMULA = "tapeFormula";
     static constexpr const char* PARAM_INPUT_TRIM = "inputTrim";
     static constexpr const char* PARAM_OUTPUT_TRIM = "outputTrim";
 
@@ -101,6 +102,7 @@ private:
 
     // Atomic parameter pointers for efficient access in process block
     std::atomic<float>* machineModeParam = nullptr;
+    std::atomic<float>* tapeFormulaParam = nullptr;
     std::atomic<float>* inputTrimParam = nullptr;
     std::atomic<float>* outputTrimParam = nullptr;
 
@@ -621,8 +623,9 @@ private:
 
     PrintThrough printThrough;
 
-    // Track machine mode changes (per-instance, not static)
+    // Track machine mode and tape formula changes (per-instance, not static)
     int lastMachineMode = -1;
+    int lastTapeFormula = -1;
 
     // Cached DAW track name for shared instance manager
     juce::String cachedTrackName;

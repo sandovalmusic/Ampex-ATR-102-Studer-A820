@@ -104,6 +104,22 @@ void HybridTapeProcessor::setTestParameters(double testSatA3, double testSatPowe
     jaBlend = testJaBlend;
 }
 
+void HybridTapeProcessor::setTestLowThreshold(double threshold)
+{
+    lowThreshold = threshold;
+}
+
+void HybridTapeProcessor::setTestCurvePower(double power)
+{
+    curvePower = power;
+}
+
+void HybridTapeProcessor::setTestHighKnee(double threshold, double amount)
+{
+    highKneeThreshold = threshold;
+    highKneeAmount = amount;
+}
+
 void HybridTapeProcessor::updateCachedValues()
 {
     isAmpexMode = (currentBiasStrength < 0.74);
@@ -140,42 +156,50 @@ void HybridTapeProcessor::updateCachedValues()
             // AMPEX ATR-102 + SM900
             // Target: THD 0.15% at 0VU, MOL +13 dB
             // Custom mastering head scaled (0.032% @ 355nW reference)
-            satA3 = 0.0052;   // Auto-tuned for 0.15% THD at 0VU
-            satPower = 0.24;  // Flattens curve to match real tape behavior
+            satA3 = 0.0052;   // Optimized for 0.15% THD at 0VU
+            satPower = 0.18;  // Tuned for curve shape (RMS 0.25 dB)
             inputBias = 0.075; // DC bias for E/O ~0.50
-            lowLevelScale = 0.74;
+            lowLevelScale = 0.65;
             dispersiveCornerFreq = 10000.0;
-            jaBlend = 0.004;  // 0.4% J-A - reduced for high bias linearization
+            jaBlend = 0.002;  // 0.2% J-A - minimal for high bias linearization (432kHz)
+            lowThreshold = 0.5;   // Optimal for high-bias Ampex
+            curvePower = 2.0;     // t² curve shape
         } else {
             // AMPEX ATR-102 + GP9
             // Target: THD 0.09% at 0VU, MOL +15 dB
             // Custom mastering head scaled (0.032% @ 355nW reference)
-            satA3 = 0.0032;   // Auto-tuned for 0.09% THD at 0VU
-            satPower = 0.24;  // Flattens curve to match real tape behavior
+            satA3 = 0.0032;   // Optimized for 0.09% THD at 0VU
+            satPower = 0.16;  // Tuned for curve shape (RMS 0.25 dB)
             inputBias = 0.075; // DC bias for E/O ~0.50
-            lowLevelScale = 0.74;
+            lowLevelScale = 0.61;
             dispersiveCornerFreq = 10000.0;
-            jaBlend = 0.004;  // 0.4% J-A - reduced for high bias linearization
+            jaBlend = 0.002;  // 0.2% J-A - minimal for high bias linearization (432kHz)
+            lowThreshold = 0.5;   // Optimal for high-bias Ampex
+            curvePower = 2.0;
         }
     } else {
         if (isSM900) {
             // STUDER A820 + SM900
             // Target: THD 0.30% at 0VU, MOL +10 dB
-            satA3 = 0.0076;   // Auto-tuned for 0.30% THD at 0VU
-            satPower = 0.46;  // Flattens curve to match real tape behavior
+            satA3 = 0.0078;   // Optimized for 0.30% THD at 0VU
+            satPower = 0.41;  // Tuned for curve shape (RMS 0.30 dB)
             inputBias = 0.18; // DC bias for E/O ~1.12
-            lowLevelScale = 0.57;
+            lowLevelScale = 0.52;
             dispersiveCornerFreq = 2800.0;
-            jaBlend = 0.010;  // 1.0% J-A for tape character
+            jaBlend = 0.008;  // 0.8% J-A for tape character (153.6kHz bias)
+            lowThreshold = 0.55;  // Higher threshold for Studer (fixes -6VU bump)
+            curvePower = 2.0;
         } else {
             // STUDER A820 + GP9
             // Target: THD 0.18% at 0VU, MOL +12 dB
-            satA3 = 0.0046;   // Auto-tuned for 0.18% @ 0VU
-            satPower = 0.46;  // Flattens curve to match real tape behavior
+            satA3 = 0.0046;   // Optimized for 0.18% @ 0VU
+            satPower = 0.43;  // Tuned for curve shape (RMS 0.31 dB)
             inputBias = 0.18; // DC bias for E/O ~1.12
-            lowLevelScale = 0.57; // Balance low-level THD
+            lowLevelScale = 0.56;
             dispersiveCornerFreq = 2800.0;
-            jaBlend = 0.010;  // 1.0% J-A for tape character
+            jaBlend = 0.008;  // 0.8% J-A for tape character (153.6kHz bias)
+            lowThreshold = 0.55;  // Higher threshold for Studer (fixes -6VU bump)
+            curvePower = 2.0;
         }
     }
 
@@ -218,13 +242,18 @@ double HybridTapeProcessor::saturate(double x)
     double clampedEnv = std::max(0.01, satEnvelope);
     double effectiveA3 = satA3 * std::pow(clampedEnv, satPower);
 
-    // Extra reduction at low levels (below ~-6dB) to match tape's low-level linearity
-    // Using squared curve so reduction is concentrated at very low levels
-    const double lowThreshold = 0.5;
+    // Extra reduction at low levels to match tape's low-level linearity
+    // Curve shape controlled by curvePower (2.0 = t², 1.0 = linear)
     if (clampedEnv < lowThreshold) {
         double t = clampedEnv / lowThreshold;  // 0 to 1
-        double tSquared = t * t;  // Concentrate reduction at very low levels
-        effectiveA3 *= (lowLevelScale + (1.0 - lowLevelScale) * tSquared);
+        double tCurve = std::pow(t, curvePower);  // Shape the transition curve
+        effectiveA3 *= (lowLevelScale + (1.0 - lowLevelScale) * tCurve);
+    }
+
+    // High-level soft knee: reduce effectiveA3 above threshold to flatten +6VU region
+    if (highKneeAmount > 0.0 && clampedEnv > highKneeThreshold) {
+        double excess = (clampedEnv - highKneeThreshold) / highKneeThreshold;
+        effectiveA3 *= 1.0 / (1.0 + highKneeAmount * excess);
     }
 
     // Cubic saturation: y = x - a3*x³

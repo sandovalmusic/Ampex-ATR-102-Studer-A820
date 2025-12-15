@@ -63,6 +63,13 @@ public:
     void setTestParameters(double testSatA3, double testSatPower,
                            double testLowLevelScale, double testJaBlend);
 
+    /**
+     * Test methods for curve shape research
+     */
+    void setTestLowThreshold(double threshold);
+    void setTestCurvePower(double power);
+    void setTestHighKnee(double threshold, double amount);
+
     double processSample(double input);
     double processRightChannel(double input);  // With azimuth delay
 
@@ -89,6 +96,10 @@ private:
     double satPower = 0.5;   // Level scaling exponent (THD slope = 2 + power)
     double satEnvelope = 0.0; // Saturation envelope follower
     double lowLevelScale = 0.5;  // Min a3 scale at very low levels (machine-specific)
+    double lowThreshold = 0.5;   // Threshold below which low-level scaling applies
+    double curvePower = 2.0;     // Power for low-level curve shape (2.0 = t²)
+    double highKneeThreshold = 1.0;  // Threshold above which high-level reduction applies
+    double highKneeAmount = 0.0;     // Amount of high-level reduction (0 = off)
 
     // J-A hysteresis blend (machine-specific based on AC bias frequency)
     // Higher bias freq = more linearization = less hysteresis character

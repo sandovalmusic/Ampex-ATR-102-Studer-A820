@@ -21,6 +21,7 @@ TapeMachinePluginSimulatorAudioProcessor::TapeMachinePluginSimulatorAudioProcess
 {
     // Get atomic parameter pointers for efficient access
     machineModeParam = parameters.getRawParameterValue (PARAM_MACHINE_MODE);
+    tapeFormulaParam = parameters.getRawParameterValue (PARAM_TAPE_FORMULA);
     inputTrimParam = parameters.getRawParameterValue (PARAM_INPUT_TRIM);
     outputTrimParam = parameters.getRawParameterValue (PARAM_OUTPUT_TRIM);
 
@@ -68,6 +69,14 @@ TapeMachinePluginSimulatorAudioProcessor::createParameterLayout()
         "Machine Mode",
         juce::StringArray { "Master", "Tracks" },
         0  // Default: Master
+    ));
+
+    // Tape Formula (0 = GP9, 1 = SM900)
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        PARAM_TAPE_FORMULA,
+        "Tape Formula",
+        juce::StringArray { "GP9", "SM900" },
+        0  // Default: GP9
     ));
 
     // Input Trim (Drive): -12dB to +12dB, default 0dB = 1.0x
@@ -270,18 +279,19 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
 
     // Get parameter values
     const int machineMode = static_cast<int> (*machineModeParam);
+    const int tapeFormula = static_cast<int> (*tapeFormulaParam);
     const float inputTrimValue = *inputTrimParam;
     const float outputTrimValue = *outputTrimParam;
 
-    // Update processor parameters based on machine mode
-    // Master mode (0) = Ampex ATR-102: bias=0.65, ultra-clean, E/O ~0.5
-    // Tracks mode (1) = Studer A820: bias=0.82, warmer saturation, E/O ~1.0
+    // Update processor parameters based on machine mode and tape formula
+    // Machine Mode: Master (0) = Ampex ATR-102, Tracks (1) = Studer A820
+    // Tape Formula: GP9 (0), SM900 (1)
     // The bias value determines which internal parameters are used (threshold at 0.74)
     const double bias = (machineMode == 0) ? 0.65 : 0.82;
 
     // Set processor parameters (input gain = 1.0, we apply drive externally via inputTrim)
-    tapeProcessorLeft.setParameters (bias, 1.0);
-    tapeProcessorRight.setParameters (bias, 1.0);
+    tapeProcessorLeft.setParameters (bias, 1.0, tapeFormula);
+    tapeProcessorRight.setParameters (bias, 1.0, tapeFormula);
 
     const int numSamples = buffer.getNumSamples();
     float peakLevel = 0.0f;
@@ -390,16 +400,16 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
     // Ampex ATR-102 has servo-controlled transport with negligible wow - disabled
     // Studer A820 multitrack has subtle wow (~0.02%) from heavier reels
     {
-        // Update modulator and tolerance EQ settings if machine mode changed
-        // Note: lastMachineMode is a member variable, not static, to support multiple instances
-        if (machineMode != lastMachineMode)
+        // Update modulator and tolerance EQ settings if machine mode or tape formula changed
+        // Note: lastMachineMode/lastTapeFormula are member variables, not static, to support multiple instances
+        if (machineMode != lastMachineMode || tapeFormula != lastTapeFormula)
         {
             bool isAmpex = (machineMode == 0);
             wowModulator.prepare (static_cast<float> (getSampleRate()), isAmpex);
             toleranceEQ.prepare (static_cast<float> (getSampleRate()),
                                  totalNumInputChannels >= 2, isAmpex);
 
-            // Reset all DSP components on mode switch to prevent pops from filter state discontinuities
+            // Reset all DSP components on mode/formula switch to prevent pops from filter state discontinuities
             // The tape processor's built-in 50ms fade-in will smoothly bring audio back
             tapeProcessorLeft.reset();
             tapeProcessorRight.reset();
@@ -414,6 +424,7 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
             sharedInstanceManager.setMode(machineMode);
 
             lastMachineMode = machineMode;
+            lastTapeFormula = tapeFormula;
         }
 
         // Apply wow modulation (per-sample processing with interpolated delay)

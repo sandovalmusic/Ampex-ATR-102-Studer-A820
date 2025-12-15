@@ -39,6 +39,28 @@ TapeMachinePluginSimulatorAudioProcessorEditor::TapeMachinePluginSimulatorAudioP
         machineModeCombo
     );
 
+    // Tape Formula ComboBox
+    tapeFormulaLabel.setText ("Tape", juce::dontSendNotification);
+    tapeFormulaLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
+    tapeFormulaLabel.setJustificationType (juce::Justification::centredLeft);
+    tapeFormulaLabel.setColour (juce::Label::textColourId, textColour);
+    addAndMakeVisible (tapeFormulaLabel);
+
+    tapeFormulaCombo.addItem ("GP9", 1);
+    tapeFormulaCombo.addItem ("SM900", 2);
+    tapeFormulaCombo.setSelectedId (1, juce::dontSendNotification);
+    tapeFormulaCombo.setColour (juce::ComboBox::backgroundColourId, backgroundColour.brighter (0.2f));
+    tapeFormulaCombo.setColour (juce::ComboBox::textColourId, textColour);
+    tapeFormulaCombo.setColour (juce::ComboBox::outlineColourId, accentColour);
+    tapeFormulaCombo.setColour (juce::ComboBox::arrowColourId, accentColour);
+    addAndMakeVisible (tapeFormulaCombo);
+
+    tapeFormulaAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        audioProcessor.getValueTreeState(),
+        TapeMachinePluginSimulatorAudioProcessor::PARAM_TAPE_FORMULA,
+        tapeFormulaCombo
+    );
+
     // Input Trim Slider (labeled as "Drive" for clarity)
     inputTrimLabel.setText ("Drive", juce::dontSendNotification);
     inputTrimLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
@@ -213,10 +235,18 @@ void TapeMachinePluginSimulatorAudioProcessorEditor::resized()
     area.removeFromTop (20);  // Spacing after divider
     auto controlArea = area.reduced (margin, 0);
 
+    // Machine mode and tape formula selectors (side by side)
+    auto selectorsArea = controlArea.removeFromTop (controlHeight + 10);
+
     // Machine mode selector
-    auto machineModeArea = controlArea.removeFromTop (controlHeight + 10);
-    machineModeLabel.setBounds (machineModeArea.removeFromLeft (80));
-    machineModeCombo.setBounds (machineModeArea.removeFromLeft (120));
+    machineModeLabel.setBounds (selectorsArea.removeFromLeft (50));
+    machineModeCombo.setBounds (selectorsArea.removeFromLeft (100));
+
+    selectorsArea.removeFromLeft (20);  // Spacing between selectors
+
+    // Tape formula selector
+    tapeFormulaLabel.setBounds (selectorsArea.removeFromLeft (40));
+    tapeFormulaCombo.setBounds (selectorsArea.removeFromLeft (90));
 
     controlArea.removeFromTop (15);  // Spacing
 

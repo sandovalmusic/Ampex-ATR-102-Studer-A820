@@ -38,6 +38,11 @@ private:
     juce::ComboBox machineModeCombo;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> machineModeAttachment;
 
+    // Tape Formula
+    juce::Label tapeFormulaLabel;
+    juce::ComboBox tapeFormulaCombo;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> tapeFormulaAttachment;
+
     // Input Trim
     juce::Label inputTrimLabel;
     juce::Slider inputTrimSlider;
