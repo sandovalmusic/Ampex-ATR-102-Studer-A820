@@ -67,8 +67,6 @@ juce_add_plugin(TapeMachinePlugin
 target_sources(TapeMachinePlugin PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
-    Source/SharedInstanceManager.cpp
-    Source/TrackStripComponent.cpp
     ../Source/DSP/HybridTapeProcessor.cpp
     ../Source/DSP/BiasShielding.cpp
     ../Source/DSP/MachineEQ.cpp

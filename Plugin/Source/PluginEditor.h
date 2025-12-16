@@ -3,7 +3,6 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include "PluginProcessor.h"
-#include "TrackStripComponent.h"
 
 //==============================================================================
 /**
@@ -63,15 +62,8 @@ private:
     juce::Colour accentColour;
     juce::Colour textColour;
 
-    // Track strip container for Master mode (shows Tracks instances)
-    TapeMachine::TrackStripContainer trackStripContainer;
-
-    // Track current mode for showing/hiding track strips
-    int lastMachineMode = -1;
-
-    // Base width before track strips
+    // Base width
     static constexpr int BASE_WIDTH = 500;
-    static constexpr int TRACK_STRIP_WIDTH = 550;  // Width of track strip panel (fits ~8 tracks without scrolling)
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TapeMachinePluginSimulatorAudioProcessorEditor)
 };

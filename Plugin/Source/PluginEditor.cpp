@@ -17,15 +17,15 @@ TapeMachinePluginSimulatorAudioProcessorEditor::TapeMachinePluginSimulatorAudioP
     titleLabel.setColour (juce::Label::textColourId, accentColour);
     addAndMakeVisible (titleLabel);
 
-    // Machine Mode ComboBox
-    machineModeLabel.setText ("Mode", juce::dontSendNotification);
+    // Machine Mode ComboBox (Ampex ATR-102 vs Studer A820)
+    machineModeLabel.setText ("Machine", juce::dontSendNotification);
     machineModeLabel.setFont (juce::FontOptions (14.0f, juce::Font::bold));
     machineModeLabel.setJustificationType (juce::Justification::centredLeft);
     machineModeLabel.setColour (juce::Label::textColourId, textColour);
     addAndMakeVisible (machineModeLabel);
 
-    machineModeCombo.addItem ("Master", 1);
-    machineModeCombo.addItem ("Tracks", 2);
+    machineModeCombo.addItem ("Ampex ATR-102", 1);
+    machineModeCombo.addItem ("Studer A820", 2);
     machineModeCombo.setSelectedId (1, juce::dontSendNotification);
     machineModeCombo.setColour (juce::ComboBox::backgroundColourId, backgroundColour.brighter (0.2f));
     machineModeCombo.setColour (juce::ComboBox::textColourId, textColour);
@@ -104,16 +104,6 @@ TapeMachinePluginSimulatorAudioProcessorEditor::TapeMachinePluginSimulatorAudioP
         TapeMachinePluginSimulatorAudioProcessor::PARAM_OUTPUT_TRIM,
         outputTrimSlider
     );
-
-    // Track strip container (initially hidden, shown in Master mode)
-    trackStripContainer.setVisible (false);
-    addChildComponent (trackStripContainer);
-
-    // Set up track param change callback to forward to shared manager
-    trackStripContainer.onTrackParamsChanged = [this](int64_t instanceId, float drive, float volume)
-    {
-        audioProcessor.getSharedInstanceManager().setTrackParams (instanceId, drive, volume);
-    };
 
     // Set window size
     setSize (BASE_WIDTH, 400);
@@ -217,13 +207,6 @@ void TapeMachinePluginSimulatorAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds();
 
-    // Track strip container on the right (if visible)
-    if (trackStripContainer.isVisible())
-    {
-        auto trackArea = area.removeFromRight (TRACK_STRIP_WIDTH);
-        trackStripContainer.setBounds (trackArea);
-    }
-
     const int margin = 20;
     const int controlHeight = 25;
     const int knobSize = 100;
@@ -235,18 +218,13 @@ void TapeMachinePluginSimulatorAudioProcessorEditor::resized()
     area.removeFromTop (20);  // Spacing after divider
     auto controlArea = area.reduced (margin, 0);
 
-    // Machine mode and tape formula selectors (side by side)
-    auto selectorsArea = controlArea.removeFromTop (controlHeight + 10);
-
-    // Machine mode selector
-    machineModeLabel.setBounds (selectorsArea.removeFromLeft (50));
-    machineModeCombo.setBounds (selectorsArea.removeFromLeft (100));
-
-    selectorsArea.removeFromLeft (20);  // Spacing between selectors
-
-    // Tape formula selector
-    tapeFormulaLabel.setBounds (selectorsArea.removeFromLeft (40));
-    tapeFormulaCombo.setBounds (selectorsArea.removeFromLeft (90));
+    // Machine mode and tape formula selectors (same row)
+    auto selectorRow = controlArea.removeFromTop (controlHeight + 10);
+    machineModeLabel.setBounds (selectorRow.removeFromLeft (65));
+    machineModeCombo.setBounds (selectorRow.removeFromLeft (130));
+    selectorRow.removeFromLeft (20);  // Spacing between selectors
+    tapeFormulaLabel.setBounds (selectorRow.removeFromLeft (40));
+    tapeFormulaCombo.setBounds (selectorRow.removeFromLeft (90));
 
     controlArea.removeFromTop (15);  // Spacing
 
@@ -283,29 +261,6 @@ void TapeMachinePluginSimulatorAudioProcessorEditor::timerCallback()
         meterLevel = currentLevel;  // Instant attack (10ms integration)
     else
         meterLevel = meterLevel * 0.988f + currentLevel * (1.0f - 0.988f);  // 2s return time
-
-    // Check current machine mode and update track strip visibility
-    int currentMode = static_cast<int>(machineModeCombo.getSelectedId()) - 1;  // 0=Master, 1=Tracks
-
-    if (currentMode != lastMachineMode)
-    {
-        lastMachineMode = currentMode;
-
-        // Show track strips only in Master mode (0)
-        bool showTracks = (currentMode == 0);
-        trackStripContainer.setVisible (showTracks);
-
-        // Resize window based on mode
-        int newWidth = showTracks ? (BASE_WIDTH + TRACK_STRIP_WIDTH) : BASE_WIDTH;
-        setSize (newWidth, getHeight());
-    }
-
-    // In Master mode, poll for Tracks instances and update strip container
-    if (trackStripContainer.isVisible())
-    {
-        auto tracksInstances = audioProcessor.getSharedInstanceManager().getTracksInstances();
-        trackStripContainer.updateTracks (tracksInstances);
-    }
 
     repaint();
 }

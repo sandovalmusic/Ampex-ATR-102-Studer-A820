@@ -25,36 +25,16 @@ TapeMachinePluginSimulatorAudioProcessor::TapeMachinePluginSimulatorAudioProcess
     inputTrimParam = parameters.getRawParameterValue (PARAM_INPUT_TRIM);
     outputTrimParam = parameters.getRawParameterValue (PARAM_OUTPUT_TRIM);
 
-    // Register parameter listener for auto-gain linking and SharedInstanceManager updates
+    // Register parameter listener for auto-gain linking
     parameters.addParameterListener (PARAM_INPUT_TRIM, this);
     parameters.addParameterListener (PARAM_OUTPUT_TRIM, this);
-    parameters.addParameterListener (PARAM_MACHINE_MODE, this);
     lastInputTrimValue = 1.0f;  // Match default (0dB)
-
-    // Register with shared instance manager for Master/Tracks communication
-    // Use the initial parameter value (default is 0 = Master)
-    int initialMode = static_cast<int>(*machineModeParam);
-    sharedInstanceManager.registerInstance(initialMode, "");
-    lastMachineMode = initialMode;  // Initialize to prevent spurious update
-
-    // Initialize SharedInstanceManager with actual parameter values (not defaults)
-    // This ensures Master mode sees correct values when Tracks instances start
-    if (auto* driveParam = parameters.getParameter (PARAM_INPUT_TRIM))
-    {
-        if (auto* volumeParam = parameters.getParameter (PARAM_OUTPUT_TRIM))
-        {
-            float driveNorm = driveParam->getValue();  // Already normalized 0-1
-            float volumeNorm = volumeParam->getValue();  // Already normalized 0-1
-            sharedInstanceManager.updateParams (driveNorm, volumeNorm);
-        }
-    }
 }
 
 TapeMachinePluginSimulatorAudioProcessor::~TapeMachinePluginSimulatorAudioProcessor()
 {
     parameters.removeParameterListener (PARAM_INPUT_TRIM, this);
     parameters.removeParameterListener (PARAM_OUTPUT_TRIM, this);
-    parameters.removeParameterListener (PARAM_MACHINE_MODE, this);
 }
 
 //==============================================================================
@@ -209,10 +189,11 @@ void TapeMachinePluginSimulatorAudioProcessor::prepareToPlay (double sampleRate,
     tapeProcessorLeft.reset();
     tapeProcessorRight.reset();
 
-    // Set default Ampex ATR-102 parameters (Master mode)
+    // Set default Ampex ATR-102 parameters (Master mode, GP9 tape)
     const double defaultBias = 0.65;
-    tapeProcessorLeft.setParameters (defaultBias, 1.0);
-    tapeProcessorRight.setParameters (defaultBias, 1.0);
+    const int defaultFormula = 0;  // GP9
+    tapeProcessorLeft.setParameters (defaultBias, 1.0, defaultFormula);
+    tapeProcessorRight.setParameters (defaultBias, 1.0, defaultFormula);
 
     // Initialize crosstalk filter at base sample rate (applied after downsampling)
     crosstalkFilter.prepare (static_cast<float> (sampleRate));
@@ -420,9 +401,6 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
             if (oversampler)
                 oversampler->reset();
 
-            // Update shared instance manager with new mode
-            sharedInstanceManager.setMode(machineMode);
-
             lastMachineMode = machineMode;
             lastTapeFormula = tapeFormula;
         }
@@ -523,40 +501,6 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
     else
         levelDB = -96.0f;
     currentLevelDB.store (levelDB);
-
-    // Update shared instance manager with current level and params
-    sharedInstanceManager.updateLevel (levelDB);
-    sharedInstanceManager.updateHeartbeat();
-
-    // Check for remote param updates from Master mode instances
-    // This allows Master to control Tracks instances' Drive and Volume
-    float remoteDrive, remoteVolume;
-    if (sharedInstanceManager.checkForParamUpdates (remoteDrive, remoteVolume))
-    {
-        // Apply remote param changes
-        // remoteDrive/remoteVolume are already normalized 0-1, which matches JUCE's internal format
-        // We use setValueNotifyingHost directly with the normalized value - JUCE handles
-        // the skew factor conversion internally when accessing the actual parameter value
-
-        // Set flag to prevent auto-gain linking (but we still need to update SharedInstanceManager)
-        isReceivingRemoteUpdate = true;
-
-        if (auto* param = parameters.getParameter (PARAM_INPUT_TRIM))
-            param->setValueNotifyingHost (remoteDrive);
-        if (auto* param = parameters.getParameter (PARAM_OUTPUT_TRIM))
-            param->setValueNotifyingHost (remoteVolume);
-
-        // Also update lastInputTrimValue to prevent auto-gain from fighting
-        // Convert normalized to actual value using the parameter's range
-        if (auto* param = parameters.getParameter (PARAM_INPUT_TRIM))
-            lastInputTrimValue = param->convertFrom0to1 (remoteDrive);
-
-        isReceivingRemoteUpdate = false;
-
-        // Update SharedInstanceManager with the new values so Master sees them
-        // This completes the round-trip: Master sends -> Tracks receives -> Tracks echoes back
-        sharedInstanceManager.updateParams (remoteDrive, remoteVolume);
-    }
 }
 
 //==============================================================================
@@ -593,7 +537,7 @@ void TapeMachinePluginSimulatorAudioProcessor::setStateInformation (const void* 
 // Parameter listener callback for auto-gain linking
 void TapeMachinePluginSimulatorAudioProcessor::parameterChanged (const juce::String& parameterID, float newValue)
 {
-    if (parameterID == PARAM_INPUT_TRIM && !isUpdatingOutputTrim && !isReceivingRemoteUpdate)
+    if (parameterID == PARAM_INPUT_TRIM && !isUpdatingOutputTrim)
     {
         // Auto-gain: When Drive (input trim) changes, adjust Output Trim to compensate
         // This keeps monitoring level constant while allowing saturation to increase
@@ -618,46 +562,6 @@ void TapeMachinePluginSimulatorAudioProcessor::parameterChanged (const juce::Str
 
         // Remember current input trim for next delta calculation
         lastInputTrimValue = newValue;
-
-        // Update shared instance manager with normalized param values
-        // Use JUCE's convertTo0to1 to properly handle the skew factor
-        float driveNorm = 0.5f;
-        float volumeNorm = 0.5f;
-        if (auto* driveParam = parameters.getParameter (PARAM_INPUT_TRIM))
-            driveNorm = driveParam->convertTo0to1 (newValue);
-        if (auto* volumeParam = parameters.getParameter (PARAM_OUTPUT_TRIM))
-            volumeNorm = volumeParam->convertTo0to1 (newOutputTrim);
-        sharedInstanceManager.updateParams (driveNorm, volumeNorm);
-    }
-    else if (parameterID == PARAM_OUTPUT_TRIM && !isUpdatingOutputTrim && !isReceivingRemoteUpdate)
-    {
-        // Volume changed independently (e.g., user double-clicked to reset)
-        // Update SharedInstanceManager so Master sees the change
-        float driveNorm = 0.5f;
-        float volumeNorm = 0.5f;
-        if (auto* driveParam = parameters.getParameter (PARAM_INPUT_TRIM))
-            driveNorm = driveParam->getValue();  // Already normalized
-        if (auto* volumeParam = parameters.getParameter (PARAM_OUTPUT_TRIM))
-            volumeNorm = volumeParam->getValue();  // Already normalized
-        sharedInstanceManager.updateParams (driveNorm, volumeNorm);
-    }
-    else if (parameterID == PARAM_MACHINE_MODE)
-    {
-        // Update shared instance manager immediately when mode changes
-        // Mode: 0 = Master, 1 = Tracks
-        sharedInstanceManager.setMode (static_cast<int> (newValue));
-    }
-}
-
-//==============================================================================
-// Called by the DAW when track properties change (e.g., track name)
-void TapeMachinePluginSimulatorAudioProcessor::updateTrackProperties (const TrackProperties& properties)
-{
-    // Update track name in shared instance manager if it changed
-    if (properties.name.isNotEmpty())
-    {
-        sharedInstanceManager.setTrackName (properties.name);
-        DBG("Track name updated to: " << properties.name);
     }
 }
 

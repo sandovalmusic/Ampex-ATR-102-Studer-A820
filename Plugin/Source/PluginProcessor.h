@@ -5,7 +5,6 @@
 #include <random>
 #include <chrono>
 #include "DSP/HybridTapeProcessor.h"
-#include "SharedInstanceManager.h"
 
 // Math constants for filter calculations (float precision for JUCE compatibility)
 namespace PluginConstants
@@ -81,12 +80,6 @@ public:
 
     // Get current output level in dB for metering
     float getCurrentLevelDB() const { return currentLevelDB.load(); }
-
-    // Access shared instance manager for Master mode UI
-    TapeMachine::SharedInstanceManager& getSharedInstanceManager() { return sharedInstanceManager; }
-
-    // Override to receive track name from DAW
-    void updateTrackProperties (const TrackProperties& properties) override;
 
 private:
     //==============================================================================
@@ -627,16 +620,9 @@ private:
     int lastMachineMode = -1;
     int lastTapeFormula = -1;
 
-    // Cached DAW track name for shared instance manager
-    juce::String cachedTrackName;
-
     // Auto-gain: Track the last input trim to detect changes
     float lastInputTrimValue = 1.0f;  // Default 0dB
     bool isUpdatingOutputTrim = false;  // Prevent listener recursion
-    bool isReceivingRemoteUpdate = false;  // Prevent feedback loops from Master/Tracks communication
-
-    // Shared instance manager for Master/Tracks communication
-    TapeMachine::SharedInstanceManager sharedInstanceManager;
 
     // Parameter listener callback
     void parameterChanged (const juce::String& parameterID, float newValue) override;
