@@ -458,7 +458,7 @@ void TapeMachinePluginSimulatorAudioProcessor::processBlock (juce::AudioBuffer<f
     }
 
     // === PRINT-THROUGH: Studer mode only ===
-    // Simulates magnetic bleed between tape layers creating subtle pre-echo
+    // Simulates tails-out storage: magnetic bleed creating subtle post-echo
     // Signal-dependent: louder passages create proportionally more print-through
     // Real-world multitrack tape (more layers, more print-through than 2-track)
     // 65ms delay represents tape layer spacing at 30 IPS

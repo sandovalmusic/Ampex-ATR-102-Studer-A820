@@ -534,7 +534,7 @@ private:
 
     // Print-Through (Studer mode only)
     // Simulates magnetic bleed between tape layers on the reel
-    // Creates subtle pre-echo ~65ms before the main signal
+    // Tails-out storage: creates subtle post-echo ~65ms after the main signal
     // Signal-dependent: louder signals create stronger magnetic bleed
     // Real print-through is proportional to the recorded flux level
     struct PrintThrough
@@ -580,37 +580,35 @@ private:
 
         void processSample(float& left, float& right)
         {
-            // Read from delay buffer (pre-echo from 65ms ago)
+            // Read delayed ghost from buffer (post-echo stored 65ms ago)
             int readIndex = writeIndex - delaySamples;
             if (readIndex < 0) readIndex += MAX_DELAY_SAMPLES;
 
-            float delayedL = bufferL[readIndex];
-            float delayedR = bufferR[readIndex];
+            float postEchoL = bufferL[readIndex];
+            float postEchoR = bufferR[readIndex];
 
             // Signal-dependent print-through:
-            // The amount of magnetic bleed is proportional to the recorded signal level
-            // Louder passages create stronger magnetization, hence more print-through
-            float absL = std::abs(delayedL);
-            float absR = std::abs(delayedR);
+            // Calculate ghost based on CURRENT signal level (tails-out storage)
+            // Louder passages create stronger magnetization at record time
+            // That ghost then appears 65ms later during playback
+            float absL = std::abs(left);
+            float absR = std::abs(right);
 
             // Apply soft knee above noise floor for natural response
             // Print level scales quadratically with amplitude (magnetic flux relationship)
             float printLevelL = (absL > noiseFloor) ? printCoeff * absL : 0.0f;
             float printLevelR = (absR > noiseFloor) ? printCoeff * absR : 0.0f;
 
-            float preEchoL = delayedL * printLevelL;
-            float preEchoR = delayedR * printLevelR;
-
-            // Write current sample to delay buffer
-            bufferL[writeIndex] = left;
-            bufferR[writeIndex] = right;
+            // Store ghost of current signal (will be read 65ms later as post-echo)
+            bufferL[writeIndex] = left * printLevelL;
+            bufferR[writeIndex] = right * printLevelR;
 
             // Advance write index
             writeIndex = (writeIndex + 1) % MAX_DELAY_SAMPLES;
 
-            // Mix pre-echo into output
-            left += preEchoL;
-            right += preEchoR;
+            // Mix post-echo into output
+            left += postEchoL;
+            right += postEchoR;
         }
     };
 
